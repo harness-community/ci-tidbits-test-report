@@ -2,6 +2,7 @@
 .env
 .env.*
 COURSE.md
+VIDEO_SCRIPT.md
 *.pem
 *.key
 *.p12
