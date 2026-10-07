@@ -232,6 +232,9 @@ Prefer `/harness/test-results/junit.xml` on Harness Cloud so the path is unambig
 **I want reports without failing the build.**  
 Soft-report mode: append `|| true` to the Pytest invocation (or use Maven `failure.ignore`), keep `reports:`, and add an explicit gate later. Do not leave soft mode on forever in merge pipelines.
 
+**`ModuleNotFoundError: No module named 'app'` during collection.**  
+`tests/` has no `__init__.py`, so Pytest's default "prepend" import mode only puts the `tests/` directory on `sys.path` — not the repo root where `app/` lives. `pytest.ini` sets `pythonpath = .` to fix this (Pytest ≥ 7). If you strip that line, add it back or give `tests/` its own `__init__.py` instead.
+
 ---
 
 ## What's next?
