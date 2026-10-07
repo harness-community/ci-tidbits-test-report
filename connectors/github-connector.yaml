@@ -1,0 +1,41 @@
+# GitHub connector — clone this tidbit repo over HTTPS.
+# The PAT lives in a Harness secret. This file only stores the secret id.
+#
+# Create the Text Secret first:
+#   id: github-pat
+#   value: a fine-grained GitHub PAT with Contents: Read-only.
+#   Harness GitHub connectors do not support anonymous auth.
+#   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token
+#
+# Then: Project Settings → Connectors → GitHub → paste this YAML.
+# Account scope (url: https://github.com) so the same connector can clone
+# any repo the token can read. The pipeline supplies repoName at runtime.
+# executeOnDelegate: false is required for Harness Cloud build infrastructure.
+
+connector:
+  name: github-connector
+  identifier: githubconnector
+  description: HTTPS GitHub connector used to clone application code for test reporting
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  type: Github
+  spec:
+    url: https://github.com
+    type: Account
+    authentication:
+      type: Http
+      spec:
+        type: UsernameToken
+        spec:
+          # REPLACE: GitHub username that owns the PAT
+          username: <YOUR_GITHUB_USER>
+          tokenRef: github-pat
+    apiAccess:
+      type: Token
+      spec:
+        tokenRef: github-pat
+    executeOnDelegate: false
+    proxy: false
+    ignoreTestConnection: false

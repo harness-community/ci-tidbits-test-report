@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+COURSE.md
+*.pem
+*.key
+*.p12
+.idea/
+.vscode/
+*.swp
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+/test-results/

@@ -1,0 +1,69 @@
+# Run Pytest and publish JUnit XML to the Harness Tests tab.
+#
+# Create secret github-pat and connector githubconnector first
+# (see connectors/github-connector.yaml). Paste this pipeline and replace
+# every # REPLACE: line. At runtime, set repoName to
+# harness-community/ci-tidbits-test-report, or a fork the token can read.
+
+pipeline:
+  name: Test and Report
+  identifier: test_and_report
+  # REPLACE
+  projectIdentifier: <YOUR_PROJECT_IDENTIFIER>
+  # REPLACE
+  orgIdentifier: <YOUR_ORG_IDENTIFIER>
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: githubconnector
+        # At runtime: harness-community/ci-tidbits-test-report, or a fork the token can read
+        repoName: <+input>
+        build:
+          type: branch
+          spec:
+            branch: main
+  stages:
+    - stage:
+        name: Test
+        identifier: test
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  name: Run unit tests
+                  identifier: run_unit_tests
+                  type: Run
+                  spec:
+                    image: python:3.12-slim
+                    shell: Sh
+                    command: |-
+                      set -eu
+                      echo "=== install test deps ==="
+                      pip install --quiet -r requirements.txt
+
+                      echo "=== run Pytest and write JUnit XML ==="
+                      mkdir -p /harness/test-results
+                      pytest tests/ --junitxml=/harness/test-results/junit.xml -v
+
+                      echo "=== report file ==="
+                      ls -la /harness/test-results/junit.xml
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - /harness/test-results/junit.xml
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: MarkAsFailure
