@@ -4,6 +4,22 @@
 
 ---
 
+## At a glance
+
+```mermaid
+flowchart LR
+    A[GitHub repo<br/>app/ + tests/] -->|cloneCodebase| B[Harness Cloud<br/>CI stage]
+    B --> C[Run step:<br/>pytest --junitxml]
+    C -->|junit.xml| D[reports: type JUnit]
+    D --> E[Tests tab<br/>suites · cases · pass/fail]
+    C -.optional: --cov.-> F[lcov.info]
+    F -.hcli cov upload.-> G[Coverage tab<br/>% covered, per-file]
+```
+
+One Run step does two jobs: it **executes** the tests and **writes** a report file. The `reports:` block on that step is what turns the file into the clickable **Tests** tab shown below — nothing else in the pipeline knows or cares that tests ran. Code coverage (dashed path) is the same idea with a different file format and upload command — see [Step 5](#step-5--optional-add-code-coverage).
+
+---
+
 ## What is “test & report” in Harness CI?
 
 Running tests in a pipeline is only half the story. The other half is **publishing** structured results so anyone can open the build’s **Tests** tab and see suites, cases, durations, and failures without scrolling raw logs.
@@ -134,6 +150,19 @@ Harness clones the codebase, then:
 
 **Green is the correct outcome** for the stock tests. The teaching payoff is the Tests tab, not only a green stage icon.
 
+### Reading the Tests tab
+
+| Widget | What it tells you |
+|---|---|
+| **Total Tests** | Case count parsed out of the JUnit XML — `3` for the stock suite. |
+| **Total Run Time** | Sum of per-case durations from the XML, not the whole stage wall-clock time. |
+| **Flaky Tests** | Cases that have flipped pass/fail across recent runs on this pipeline — `0` until you have history. |
+| **Failure Rate** | Failed ÷ total, as a trend indicator across builds, not just this run. |
+| **Passed / Failed / Skipped bar** | Same counts as a quick visual — green/red/blue segments. |
+| **Test list (Description, Origin, Duration)** | One row per case. **Origin** is the `module.ClassName`-style path parsed from the XML (`tests.test_main` here); click a row to see the failure trace if red. |
+
+The `Status`, `stage`, and `Step` filters above the list matter once a pipeline has multiple test steps or stages — they scope the list to just `run_unit_tests` in this demo.
+
 ### Optional: prove the fail path
 
 Flip one assertion in `tests/test_main.py`, re-run, and confirm:
@@ -142,6 +171,57 @@ Flip one assertion in `tests/test_main.py`, re-run, and confirm:
 2. The **Tests** tab still shows the failed case (because the XML was written before exit — Pytest writes the report even when assertions fail).
 
 Revert the assertion when you are done so the default branch stays green.
+
+---
+
+## Step 5 — (Optional) Add code coverage
+
+The Tests tab tells you which tests ran. The **Coverage** tab (next to it) tells you which *lines* those tests actually exercised. Same pattern as reports: generate a file in a format Harness understands, then upload it.
+
+**Prerequisite:** Code Coverage is behind the `CI_CODE_COVERAGE` account feature flag — ask Harness Support to enable it — and the pipeline needs `CI_ENABLE_HCLI_FOR_TESTS=true` set as an environment variable. Without the flag, the Coverage tab stays empty even if you upload a file.
+
+Extend the Run step (or add a second one) with `pytest-cov` and the `hcli cov` commands:
+
+```yaml
+- step:
+    type: Run
+    name: Run unit tests
+    identifier: run_unit_tests
+    spec:
+      image: python:3.12-slim
+      shell: Sh
+      envVariables:
+        CI_ENABLE_HCLI_FOR_TESTS: "true"
+      command: |-
+        pip install -r requirements.txt pytest-cov
+
+        pytest tests/ \
+          --junitxml=/harness/test-results/junit.xml \
+          --cov=app \
+          --cov-report=lcov:/harness/test-results/lcov.info \
+          -v
+
+        hcli cov upload --file=/harness/test-results/lcov.info
+      reports:
+        type: JUnit
+        spec:
+          paths:
+            - /harness/test-results/junit.xml
+```
+
+Open the build → **Coverage** tab:
+
+| Metric | What it shows |
+|---|---|
+| **Total Coverage** | % of all lines in `--cov=app` exercised by the suite. |
+| **Patch Coverage** | % of *changed* lines covered — only populated on PR builds. |
+| **Per-File Breakdown** | Coverage % per source file, so you can spot an untested module at a glance. |
+
+On a PR, the diff view adds line-level color: green (covered), red (not covered), yellow (partially covered — some branches missed).
+
+**Optional quality gate:** `hcli cov wait-until --gt=70 --patch-gt=80 --timeout=1m` blocks the stage until thresholds are met — fails the build if coverage regresses below your bar. Add it as its own step after the upload.
+
+Docs: [Code coverage](https://developer.harness.io/continuous-integration/use-harness-ci/use-harness-ci/run-tests/test-management/ci-code-coverage).
 
 ---
 
@@ -240,7 +320,7 @@ Soft-report mode: append `|| true` to the Pytest invocation (or use Maven `failu
 ## What's next?
 
 - **Test Intelligence.** Graduate the Run step to a Test step when you want selective test execution on large suites.
-- **Coverage.** Publish coverage artifacts separately; JUnit XML does not replace a coverage report.
+- **Coverage.** See [Step 5](#step-5--optional-add-code-coverage) above — JUnit XML does not replace a coverage report, they're uploaded separately.
 - **Parallel frameworks.** Run Pytest and Jest as parallel steps, each with its own `reports:` paths, when a monorepo emits both.
 
 ---
@@ -252,4 +332,5 @@ Soft-report mode: append `|| true` to the Pytest invocation (or use Maven `failu
 - [Run step settings](https://developer.harness.io/docs/continuous-integration/use-ci/run-step-settings/)
 - [Configure a codebase](https://developer.harness.io/continuous-integration/use-harness-ci/use-harness-ci/codebase-configuration/create-and-configure-a-codebase)
 - [Add and use text secrets](https://developer.harness.io/docs/platform/secrets/add-use-text-secrets)
+- [Code coverage](https://developer.harness.io/continuous-integration/use-harness-ci/use-harness-ci/run-tests/test-management/ci-code-coverage)
 - Sample repo: https://github.com/harness-community/ci-tidbits-test-report
